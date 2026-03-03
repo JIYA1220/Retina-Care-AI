@@ -17,24 +17,11 @@ ENV/
 *.swo
 
 # RetinaCare Project Specific
-# We ignore the data folder as it contains thousands of high-res images
-data/
-# We ignore binary model weights and exported formats
-model/*.pth
+# We ignore the large image data, but ALLOW the trained weights for deployment
+data/train_images/
 model/*.pt
-model/*.onnx
-# Ignore temporary training splits
-data/*.csv
-
-# Assets
-# If you have local samples, ignore them to keep repo clean
-assets/samples/
+# model/*.pth  <-- Removed this so weights can be pushed to GitHub
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Distribution / Build
-dist/
-build/
-*.egg-info/

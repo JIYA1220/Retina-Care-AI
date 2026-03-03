@@ -84,10 +84,17 @@ def get_gradcam_overlay(pil_image: Image.Image,
     """
     device = torch.device("cpu")
     
-    # Check if weights exist for real loading, otherwise return dummy for Demo Mode
+    # Check if weights exist for real loading, otherwise return simulated for Demo Mode
     if not os.path.exists(weights_path):
-        dummy = np.zeros((160, 160, 3), dtype=np.uint8)
-        return dummy, dummy, np.zeros((160, 160))
+        # Create a simulated heatmap (colored blobs)
+        sim_heat = np.zeros((160, 160, 3), dtype=np.uint8)
+        cv2.circle(sim_heat, (80, 80), 40, (0, 0, 255), -1) # Red blob
+        cv2.GaussianBlur(sim_heat, (31, 31), 0, sim_heat)
+        
+        # Overlay on input
+        img_np = pil_to_preprocessed(pil_image, img_size=160)
+        overlay = cv2.addWeighted(img_np, 0.7, sim_heat, 0.3, 0)
+        return overlay, sim_heat, np.zeros((160, 160))
 
     model = load_model(weights_path, model_name, device)
 
