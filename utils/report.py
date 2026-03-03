@@ -1,0 +1,165 @@
+"""
+report.py
+Generate a clinical-style PDF report using fpdf2.
+Optimized for 1-page layout with sleek, light design.
+"""
+
+import io
+import datetime
+import numpy as np
+from fpdf import FPDF
+from PIL import Image
+
+GRADE_COLORS = {
+    0: (72, 187, 120),    # green
+    1: (236, 201, 75),    # yellow
+    2: (237, 137, 54),    # orange
+    3: (245, 101, 101),   # red
+    4: (155, 44, 44),     # dark red
+}
+
+LABELS = {
+    0: "No Diabetic Retinopathy",
+    1: "Mild Nonproliferative DR",
+    2: "Moderate Nonproliferative DR",
+    3: "Severe Nonproliferative DR",
+    4: "Proliferative DR",
+}
+
+def _pil_to_bytes(img_np: np.ndarray, fmt: str = "PNG") -> bytes:
+    pil = Image.fromarray(img_np.astype(np.uint8))
+    buf = io.BytesIO()
+    pil.save(buf, format=fmt)
+    return buf.getvalue()
+
+class DRReport(FPDF):
+    def header(self):
+        # Header Banner
+        self.set_fill_color(247, 250, 252) # Light Grey-Blue
+        self.rect(0, 0, 210, 30, "F")
+        self.set_text_color(45, 55, 72)    # Dark Slate
+        self.set_font("Helvetica", "B", 16)
+        self.set_xy(10, 10)
+        self.cell(0, 10, "RETINAL ANALYSIS REPORT", align="L")
+        
+        self.set_font("Helvetica", "", 10)
+        self.set_text_color(113, 128, 150)
+        self.set_xy(10, 18)
+        self.cell(0, 5, "Diabetic Retinopathy Automated Screening System", align="L")
+        
+        self.set_xy(150, 10)
+        self.set_font("Helvetica", "I", 9)
+        self.cell(50, 10, f"Date: {datetime.datetime.now().strftime('%d %b %Y')}", align="R")
+        self.ln(20)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "I", 8)
+        self.set_text_color(160, 174, 192)
+        self.cell(0, 10, "Page 1 of 1 - This is a research evaluation aid and not a final medical diagnosis.", align="C")
+
+def generate_report(
+    grade: int,
+    label: str,
+    description: str,
+    probs: np.ndarray,
+    original_img: np.ndarray,
+    gradcam_img: np.ndarray,
+    lime_img: np.ndarray,
+) -> bytes:
+    pdf = DRReport(orientation="P", unit="mm", format="A4")
+    pdf.add_page()
+    
+    # 1. Assessment Summary Section
+    pdf.set_y(35)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(74, 85, 104)
+    pdf.cell(0, 10, "CLINICAL ASSESSMENT", ln=True)
+    
+    # Severity Badge
+    r, g, b = GRADE_COLORS[grade]
+    pdf.set_fill_color(r, g, b)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(190, 12, f"Result: {label} (Grade {grade})", align="C", fill=True, ln=True)
+    
+    pdf.ln(5)
+    
+    # Description
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(45, 55, 72)
+    pdf.multi_cell(0, 6, f"Observations: {description}")
+    
+    pdf.ln(8)
+    
+    # 2. Probability Distribution
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(74, 85, 104)
+    pdf.cell(0, 8, "PREDICTION CONFIDENCE", ln=True)
+    
+    chart_x = 15
+    for i, prob in enumerate(probs):
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(113, 128, 150)
+        pdf.set_x(chart_x)
+        pdf.cell(35, 6, f"Grade {i}")
+        
+        # Bar Background
+        pdf.set_fill_color(237, 242, 247)
+        pdf.rect(chart_x + 35, pdf.get_y() + 1, 100, 4, "F")
+        
+        # Bar Foreground
+        if i == grade:
+            pdf.set_fill_color(r, g, b)
+        else:
+            pdf.set_fill_color(160, 174, 192)
+        
+        pdf.rect(chart_x + 35, pdf.get_y() + 1, prob * 100, 4, "F")
+        
+        pdf.set_x(chart_x + 140)
+        pdf.cell(20, 6, f"{prob*100:.1f}%")
+        pdf.ln(6)
+        
+    pdf.ln(10)
+    
+    # 3. Visual Evidence Section
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(74, 85, 104)
+    pdf.cell(0, 8, "VISUAL ANALYSIS EVIDENCE", ln=True)
+    
+    pdf.ln(2)
+    
+    img_size = 55
+    y_img = pdf.get_y()
+    
+    # Image 1: Preprocessed
+    img1_bytes = _pil_to_bytes(original_img)
+    pdf.image(io.BytesIO(img1_bytes), x=15, y=y_img, w=img_size, h=img_size)
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_xy(15, y_img + img_size + 2)
+    pdf.cell(img_size, 5, "Preprocessed Input", align="C")
+    
+    # Image 2: Grad-CAM
+    img2_bytes = _pil_to_bytes(gradcam_img)
+    pdf.image(io.BytesIO(img2_bytes), x=77.5, y=y_img, w=img_size, h=img_size)
+    pdf.set_xy(77.5, y_img + img_size + 2)
+    pdf.cell(img_size, 5, "Grad-CAM Activation", align="C")
+    
+    # Image 3: LIME
+    img3_bytes = _pil_to_bytes(lime_img)
+    pdf.image(io.BytesIO(img3_bytes), x=140, y=y_img, w=img_size, h=img_size)
+    pdf.set_xy(140, y_img + img_size + 2)
+    pdf.cell(img_size, 5, "LIME Superpixels", align="C")
+    
+    pdf.ln(20)
+    
+    # 4. Disclaimer Box
+    pdf.set_y(250)
+    pdf.set_fill_color(255, 245, 245) # Very light red
+    pdf.rect(10, 250, 190, 20, "F")
+    pdf.set_text_color(155, 44, 44)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_xy(12, 252)
+    pdf.multi_cell(186, 4, "DISCLAIMER: This report is generated by an Artificial Intelligence system. It is designed to assist medical professionals by highlighting areas of concern in retinal fundus images. It MUST be reviewed by a licensed ophthalmologist before any clinical decisions are made.", align="C")
+
+    return pdf.output()
