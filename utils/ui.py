@@ -46,6 +46,15 @@ def apply_medical_theme():
             color: #000000 !important;
         }
         
+        /* Force black text inside Streamlit notification components */
+        div[data-testid="stNotification"] p, 
+        div[data-testid="stAlert"] p, 
+        div[data-testid="stExpander"] p,
+        .stAlert p {
+            color: #000000 !important;
+            font-weight: 600 !important;
+        }
+        
         /* Entrance Animation */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .stMarkdown, .stImage, .stButton { animation: fadeIn 0.8s ease-out; }
