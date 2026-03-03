@@ -1,14 +1,28 @@
-# Diabetic Retinopathy Severity Grader
+# Retina-Care AI — Diabetic Retinopathy Severity Grader (Grad-CAM + LIME + PDF Report)
 
-> An AI-powered retinal image analysis tool with **Grad-CAM + LIME explainability** and **clinical PDF report generation**.
+Retina-Care AI is a Streamlit-based application that analyzes retinal fundus images and predicts **Diabetic Retinopathy (DR) severity (Grade 0–4)**. It also provides **model explainability** using **Grad-CAM** and **LIME**, and generates a downloadable **clinical-style PDF report** to summarize results.
+
+> **Disclaimer:** This project is for research/education only. It is **not** a medical device and must **not** be used as a substitute for professional diagnosis.
+
+---
+
+## Features
+
+- Upload a retinal fundus image (**PNG/JPG**) and predict **DR grade (0–4)**
+- Shows **confidence + per-class probability distribution**
+- **Grad-CAM heatmap** to visualize important regions
+- **LIME superpixel explanation** for local interpretability
+- Download a **clinical-style PDF report**
+- Optional **temperature scaling calibration** for more reliable probabilities
+- Includes training script for the APTOS 2019 dataset
 
 ---
 
 ## Project Structure
 
-```
+```text
 retina_grader/
-├── app.py                        # Streamlit web app (main entry point)
+├── app.py                        # Streamlit web app (entry point)
 ├── train.py                      # Training script
 ├── requirements.txt
 ├── README.md
@@ -16,7 +30,7 @@ retina_grader/
 ├── model/
 │   ├── model.py                  # EfficientNet-B0 architecture
 │   ├── predict.py                # Inference pipeline
-│   └── efficientnet_dr.pth       # saved weights (created after training)
+│   └── efficientnet_dr.pth       # Saved weights (after training)
 │
 ├── explainability/
 │   ├── gradcam.py                # Grad-CAM heatmap generation
@@ -27,7 +41,7 @@ retina_grader/
 │   ├── dataset.py                # PyTorch Dataset + WeightedSampler
 │   └── report.py                 # PDF report generator
 │
-└── data/                         # place Kaggle data here
+└── data/                         # Kaggle dataset goes here
     ├── train.csv
     └── train_images/
         ├── 0a4e1a29ffff.png
@@ -38,24 +52,27 @@ retina_grader/
 
 ## Dataset
 
-**APTOS 2019 Blindness Detection**
+This project uses the **APTOS 2019 Blindness Detection** dataset:  
 https://www.kaggle.com/competitions/aptos2019-blindness-detection/data
 
-- 3,662 retinal fundus images
-- Labels: 0 (No DR) -> 4 (Proliferative DR)
-- Collected from Aravind Eye Hospital, India
+- ~**3,662** retinal fundus images
+- Labels: **0 (No DR)** → **4 (Proliferative DR)**
 
-### Download via Kaggle CLI:
+### Download via Kaggle CLI
+
 ```bash
-# Install kaggle CLI
+# Install Kaggle CLI
 pip install kaggle
 
-# Set up your API key from https://www.kaggle.com/settings
+# Add your Kaggle API key from https://www.kaggle.com/settings
 mkdir ~/.kaggle
 cp kaggle.json ~/.kaggle/
+chmod 600 ~/.kaggle/kaggle.json  # recommended on macOS/Linux
 
-# Download
+# Download dataset
 kaggle competitions download -c aptos2019-blindness-detection -p data/
+
+# Unzip
 cd data && unzip aptos2019-blindness-detection.zip
 ```
 
@@ -63,16 +80,20 @@ cd data && unzip aptos2019-blindness-detection.zip
 
 ## Setup
 
-### 1. Create a virtual environment (recommended)
+### 1) Create a virtual environment (recommended)
+
 ```bash
 python -m venv venv
-# Windows:
+
+# Windows
 venv\Scripts\activate
-# Mac/Linux:
+
+# macOS/Linux
 source venv/bin/activate
 ```
 
-### 2. Install dependencies
+### 2) Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -81,103 +102,96 @@ pip install -r requirements.txt
 
 ## Training
 
+Train the model using APTOS 2019 images and labels:
+
 ```bash
 python train.py --data_dir data --epochs 15 --batch_size 8
 ```
 
 | Argument | Default | Description |
-|---|---|---|
-| `--data_dir` | `data` | Folder containing `train.csv` + `train_images/` |
+|---|---:|---|
+| `--data_dir` | `data` | Folder containing `train.csv` and `train_images/` |
 | `--epochs` | `15` | Number of training epochs |
-| `--batch_size` | `8` | Batch size (keep <=8 for CPU) |
+| `--batch_size` | `8` | Batch size (keep ≤ 8 for CPU) |
 | `--lr` | `1e-4` | Learning rate |
 
-Training on CPU for 15 epochs takes ~3-6 hours depending on your machine.
-Tip: Start with `--epochs 5` to verify everything works.
+After training, weights are saved to:
 
-After training, weights are saved to `model/efficientnet_dr.pth`.
+```text
+model/efficientnet_dr.pth
+```
+
+**Tip:** Start with fewer epochs first (e.g., `--epochs 3` or `--epochs 5`) to confirm everything runs correctly.
 
 ---
 
-## 🌡️ Confidence Calibration (Optional but Recommended)
+## Confidence Calibration (Optional but Recommended)
 
-Neural networks can be overconfident in their predictions. We use **Temperature Scaling** to calibrate the model's probabilities, ensuring that a 90% confidence score actually corresponds to 90% accuracy.
+Neural networks can be overconfident. This project supports **Temperature Scaling** to calibrate predicted probabilities (so confidence values are more realistic).
 
-### Run Calibration:
 ```bash
 python -m calibration.temperature_scaling --weights model/efficientnet_dr.pth --data_dir data
 ```
 
-- **Output:** Saves `model/temperature.pt`.
-- **Impact:** The Streamlit app automatically detects this file and applies it to all future inferences to provide more reliable and "calibrated" probability distributions.
+- Output file: `model/temperature.pt`
+- If this file exists, the app automatically applies calibration during inference.
 
 ---
 
-## 🚀 Running the App
+## Run the App (Streamlit)
 
 ```bash
 streamlit run app.py
 ```
 
-Open your browser at **http://localhost:8501**
+Then open:
 
-### Features:
-- Upload any retinal fundus image (PNG/JPG)
-- Get DR severity grade (0-4) with confidence
-- Per-class probability bar chart
-- Grad-CAM heatmap (what the model looks at)
-- LIME superpixel explanation
-- Download a clinical-style PDF report
+```text
+http://localhost:8501
+```
+
+### What you’ll see in the app
+- Predicted **DR grade (0–4)** and confidence
+- **Probability chart** for all classes
+- **Grad-CAM** visualization
+- **LIME** visualization
+- Button to download a **PDF report**
 
 ---
 
-## Model Details
+## Model Overview
 
-| Component | Details |
-|---|---|
-| **Backbone** | EfficientNet-B0 (timm, ImageNet pretrained) |
-| **Classifier** | Dropout -> Linear(1280->256) -> ReLU -> Linear(256->5) |
-| **Loss** | Weighted CrossEntropy (handles class imbalance) |
-| **Sampling** | WeightedRandomSampler (handles imbalance at batch level) |
-| **Preprocessing** | Ben Graham: circle crop + Gaussian subtraction |
-| **Augmentation** | Albumentations (flip, rotate, color jitter, noise) |
-| **Metric** | Quadratic Weighted Kappa (competition standard) |
+- **Backbone:** EfficientNet-B0 (ImageNet pretrained via `timm`)
+- **Classifier head:** Dropout → Linear(1280→256) → ReLU → Linear(256→5)
+- **Loss:** Weighted Cross Entropy (helps with imbalance)
+- **Sampling:** WeightedRandomSampler
+- **Preprocessing:** Ben Graham style enhancement (retinal image normalization)
+- **Augmentation:** Albumentations transforms (flip/rotate/color/noise)
+- **Evaluation metric:** Quadratic Weighted Kappa
 
 ---
 
 ## Explainability
 
 ### Grad-CAM
-Hooks into the last convolutional block of EfficientNet-B0.
-Computes gradient-weighted activations to highlight important spatial regions.
+Grad-CAM highlights image regions that most strongly influence the model’s decision by combining gradients with convolutional feature maps.
 
 ### LIME
-Perturbs the image into superpixels and trains a local linear model.
-Identifies which regions push the model toward the predicted grade.
+LIME creates superpixels and perturbs them to learn a local surrogate model, showing which regions push the prediction toward a specific grade.
 
 ---
 
-## Deployment (Streamlit Cloud)
+## Deployment (Streamlit Community Cloud)
 
-1. Push this repo to GitHub
+1. Push your repository to GitHub
 2. Go to https://share.streamlit.io
-3. Connect your repo -> set `app.py` as entry point
-4. Add `model/efficientnet_dr.pth` to the repo (use Git LFS for large files)
-5. Deploy!
-
----
-
-## Resume Talking Points
-
-- Implemented **Ben Graham preprocessing** (domain-specific retinal image enhancement)
-- Handled **severe class imbalance** (1808 Grade-0 vs 193 Grade-3) using weighted sampling + weighted loss
-- Integrated **Grad-CAM** for spatial attribution and **LIME** for superpixel-level XAI
-- Built end-to-end **Streamlit web app** with clinical PDF report generation
-- Achieved competitive **Quadratic Weighted Kappa** (target: >0.80)
+3. Select your repo and set **`app.py`** as the entry point
+4. Add `model/efficientnet_dr.pth` to your repo (use **Git LFS** if needed)
+5. Deploy
 
 ---
 
 ## Disclaimer
 
-This tool is for **research and educational purposes only**.
-It is NOT a substitute for professional ophthalmological diagnosis.
+This tool is provided for **research and educational purposes only**.  
+It is **not** intended for real-world clinical diagnosis and should not be used for medical decision-making.
