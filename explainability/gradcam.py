@@ -107,13 +107,21 @@ def get_gradcam_overlay(pil_image: Image.Image,
 
     cam = gradcam.generate(tensor, class_idx=class_idx)
 
+    # Normalise CAM
+    cam -= cam.min()
+    if cam.max() > 0:
+        cam /= cam.max()
+    else:
+        # Fallback if CAM is all zeros
+        cam = np.zeros_like(cam)
+    
     # Resize CAM to image size
     cam_resized = cv2.resize(cam, (160, 160))
 
     # Colormap (OpenCV applyColorMap returns BGR)
-    heatmap_bgr = cv2.applyColorMap(
-        np.uint8(255 * cam_resized), cv2.COLORMAP_JET
-    )
+    # Ensure it's uint8 for applyColorMap
+    cam_u8 = np.uint8(255 * cam_resized)
+    heatmap_bgr = cv2.applyColorMap(cam_u8, cv2.COLORMAP_JET)
     heatmap_rgb = cv2.cvtColor(heatmap_bgr, cv2.COLOR_BGR2RGB)
 
     # Blend with original (OpenCV addWeighted works in BGR)

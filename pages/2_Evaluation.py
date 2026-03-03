@@ -50,10 +50,15 @@ def run_evaluation(_model, _loader):
 st.markdown("<h1>Model Evaluation Dashboard</h1>", unsafe_allow_html=True)
 
 # Simulation Mode Logic
-USE_SIMULATION = not os.path.exists(WEIGHTS_PATH) or not os.path.exists(VAL_CSV)
+IMG_DIR = os.path.join(DATA_DIR, "train_images")
+HAS_IMAGES = os.path.exists(IMG_DIR) and len(os.listdir(IMG_DIR)) > 0
+USE_SIMULATION = not os.path.exists(WEIGHTS_PATH) or not os.path.exists(VAL_CSV) or not HAS_IMAGES
 
 if USE_SIMULATION:
-    st.info("💡 **Simulation Mode Active**: Showing expected performance based on training logs (Kappa: 0.8042).")
+    if not HAS_IMAGES and os.path.exists(VAL_CSV):
+        st.info("💡 **Cloud Mode**: Images not found in repository (too large for GitHub). Showing performance results from your local training logs.")
+    else:
+        st.info("💡 **Simulation Mode Active**: Showing expected performance based on training logs (Kappa: 0.8042).")
 
 if st.button("🚀 Run Comprehensive Evaluation") or USE_SIMULATION:
     if not USE_SIMULATION:
