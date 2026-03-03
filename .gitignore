@@ -17,10 +17,13 @@ ENV/
 *.swo
 
 # RetinaCare Project Specific
-# We ignore the large image data, but ALLOW the trained weights for deployment
+# Ignore the thousands of images
 data/train_images/
-model/*.pt
-# model/*.pth  <-- Removed this so weights can be pushed to GitHub
+
+# ALLOW these specific files for the Cloud App to work 100%
+!data/_val_split.csv
+!model/*.pth
+!model/*.pt
 
 # OS
 .DS_Store
