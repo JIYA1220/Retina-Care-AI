@@ -7,13 +7,13 @@ Uses soft-voting with calibrated probabilities.
 import os
 import torch
 import numpy as np
-from model.model import load_model
+import streamlit as st
+from model.model import get_model
 
 class DRGraderEnsemble:
     def __init__(self, eff_path="model/efficientnet_b0_dr.pth", res_path="model/resnet50_dr.pth", device="cpu"):
-        self.device = torch.device(device)
-        self.eff_model = load_model(eff_path, "efficientnet_b0", self.device)
-        self.res_model = load_model(res_path, "resnet50", self.device)
+        self.eff_model = get_model(eff_path, "efficientnet_b0", device)
+        self.res_model = get_model(res_path, "resnet50", device)
         
         # Soft-voting weights (EfficientNet performed better at 0.80)
         self.w_eff = 0.6
@@ -42,3 +42,7 @@ class DRGraderEnsemble:
             final_probs = (self.w_eff * probs_eff) + (self.w_res * probs_res)
             
         return final_probs.squeeze().cpu().numpy()
+
+@st.cache_resource
+def get_ensemble(eff_path: str, res_path: str, device: str = "cpu") -> DRGraderEnsemble:
+    return DRGraderEnsemble(eff_path, res_path, device)

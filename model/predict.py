@@ -77,9 +77,11 @@ def predict(pil_image: Image.Image,
     iterations = tta_transforms if use_tta else [tta_transforms[0]]
 
     if use_ensemble and os.path.exists(res_path):
-        engine = DRGraderEnsemble(eff_path=eff_path, res_path=res_path, device="cpu")
+        from model.ensemble import get_ensemble
+        engine = get_ensemble(eff_path=eff_path, res_path=res_path, device="cpu")
     else:
-        model = load_model(eff_path, "efficientnet_b0", device)
+        from model.model import get_model
+        model = get_model(eff_path, "efficientnet_b0", "cpu")
 
     with torch.no_grad():
         for transform in iterations:

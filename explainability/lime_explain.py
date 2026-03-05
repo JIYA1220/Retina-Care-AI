@@ -60,7 +60,8 @@ def get_lime_explanation(pil_image: Image.Image,
         dummy = np.zeros((160, 160, 3), dtype=np.uint8)
         return dummy, None
 
-    model = load_model(weights_path, model_name, device)
+    from model.model import get_model
+    model = get_model(weights_path, model_name, "cpu")
 
     img_np = pil_to_preprocessed(pil_image, img_size=160)   # uint8 RGB
 

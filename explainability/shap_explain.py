@@ -33,7 +33,8 @@ def get_shap_explanation(pil_image: Image.Image,
     if not os.path.exists(weights_path):
         return np.zeros((160, 160, 3), dtype=np.uint8), None
 
-    model = load_model(weights_path, model_name, "cpu")
+    from model.model import get_model
+    model = get_model(weights_path, model_name, "cpu")
     model.eval()
     disable_inplace_activations(model)
 

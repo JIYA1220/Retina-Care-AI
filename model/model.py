@@ -4,6 +4,7 @@ Generalized model class for DR grading supporting different backbones.
 Includes Streamlit caching for high-speed inference.
 """
 
+import os
 import torch
 import torch.nn as nn
 import timm
@@ -38,14 +39,24 @@ def build_model(model_name: str = "efficientnet_b0", pretrained: bool = True) ->
     return DRGrader(model_name=model_name, pretrained=pretrained)
 
 @st.cache_resource
-def load_model(weights_path: str, model_name: str, device_str: str) -> DRGrader:
+def get_model(weights_path: str, model_name: str, device_name: str = "cpu") -> DRGrader:
     """
     Cached model loader to prevent reloading from disk on every interaction.
     """
-    device = torch.device(device_str)
+    device = torch.device(device_name)
     model = build_model(model_name=model_name, pretrained=False)
+    
+    if not os.path.exists(weights_path):
+        # Return uninitialized model for demo purposes if weights missing
+        model.eval()
+        return model
+        
     state = torch.load(weights_path, map_location=device)
     model.load_state_dict(state)
     model.to(device)
     model.eval()
     return model
+
+# Keep load_model for backward compatibility but redirect to cached get_model
+def load_model(weights_path: str, model_name: str, device: torch.device) -> DRGrader:
+    return get_model(weights_path, model_name, str(device))

@@ -96,7 +96,8 @@ def get_gradcam_overlay(pil_image: Image.Image,
         overlay = cv2.addWeighted(img_np, 0.7, sim_heat, 0.3, 0)
         return overlay, sim_heat, np.zeros((160, 160))
 
-    model = load_model(weights_path, model_name, device)
+    from model.model import get_model
+    model = get_model(weights_path, model_name, "cpu")
 
     # Target last conv block of EfficientNet-B0
     target_layer = model.backbone.blocks[-1]
