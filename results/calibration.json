@@ -1,0 +1,58 @@
+{
+  "split": "validation split, 2-fold cross-fitting",
+  "seed": 0,
+  "n_bins": 15,
+  "n_images": 733,
+  "shipped_temperatures": {
+    "efficientnet_b0": 1.5000110864639282,
+    "resnet50": 1.4035109281539917
+  },
+  "crossfit_temperatures": {
+    "efficientnet_b0": [
+      1.4813290605865945,
+      1.5266898938132096
+    ],
+    "resnet50": [
+      1.2337945425373875,
+      1.369027624304594
+    ]
+  },
+  "note": "'after_crossfit' fits T on one half and evaluates on the other half. 'shipped_insample' uses model/*_temp.pt, which were fitted on this same split.",
+  "models": {
+    "efficientnet_b0": {
+      "ece_before": 0.10051265842755203,
+      "nll_before": 1.0394428968429565,
+      "ece_after_crossfit": 0.09190885852358385,
+      "nll_after_crossfit": 0.9813253329375798,
+      "ece_shipped_insample": 0.09015815181589061,
+      "nll_shipped_insample": 0.9811237454414368,
+      "accuracy_before": 0.6180081855388813,
+      "accuracy_after_crossfit": 0.6180081855388813
+    },
+    "resnet50": {
+      "ece_before": 0.10391892807870738,
+      "nll_before": 1.1679954528808594,
+      "ece_after_crossfit": 0.10055595204680244,
+      "nll_after_crossfit": 1.14852420196167,
+      "ece_shipped_insample": 0.1220212240498843,
+      "nll_shipped_insample": 1.1478581428527832,
+      "accuracy_before": 0.5525238744884038,
+      "accuracy_after_crossfit": 0.5525238744884038
+    },
+    "ensemble": {
+      "ece_before": 0.0821180749394884,
+      "nll_before": 0.9861961603164673,
+      "ece_after_crossfit": 0.10494779017333977,
+      "nll_after_crossfit": 0.992815426590263,
+      "ece_shipped_insample": 0.10371552226813396,
+      "nll_shipped_insample": 0.9943314790725708,
+      "accuracy_before": 0.6030013642564802,
+      "accuracy_after_crossfit": 0.6043656207366985
+    }
+  },
+  "git": {
+    "commit": "73c0e75abf993b6b0d71d057f1c2d535f659fd12",
+    "dirty": true
+  },
+  "date": "2026-10-18"
+}
