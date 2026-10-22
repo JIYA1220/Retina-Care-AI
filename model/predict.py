@@ -1,7 +1,11 @@
 """
 predict.py
 Run inference on a single retinal image.
-Supports ensemble mode, TTA, and a 'Mock Mode' for testing without weights.
+Supports ensemble mode and TTA.
+
+Set the environment variable DR_DEMO_MOCK=1 to get random predictions for UI
+demos when no weights are available (the app then shows a red DEMO MODE banner).
+Without it, missing weights raise FileNotFoundError.
 """
 
 import os
@@ -39,12 +43,16 @@ VAL_TRANSFORM = A.Compose([
 ])
 
 
+def demo_mode() -> bool:
+    return os.environ.get("DR_DEMO_MOCK") == "1"
+
+
 def predict(pil_image: Image.Image,
             use_tta: bool = False,
             use_ensemble: bool = False):
     """
     Returns grade, label, description, probs, and preprocessed image.
-    If weights are missing, returns confident mock data for UI testing.
+    Raises FileNotFoundError if the weights are missing, unless DR_DEMO_MOCK=1.
     """
     device = torch.device("cpu")
     img_np = pil_to_preprocessed(pil_image, img_size=160)
@@ -53,16 +61,13 @@ def predict(pil_image: Image.Image,
     eff_path = "model/efficientnet_b0_dr.pth"
     res_path = "model/resnet50_dr.pth"
 
-    # --- MOCK MODE: If weights don't exist, return dummy data ---
     if not os.path.exists(eff_path):
-        # Generate confident probabilities (one class > 75%)
-        mock_probs = np.random.dirichlet(np.ones(5) * 0.1) 
-        grade = int(np.argmax(mock_probs))
-        # Ensure the winning class is actually high
-        mock_probs[grade] = 0.75 + (np.random.random() * 0.2)
-        mock_probs = mock_probs / mock_probs.sum()
-        
-        return grade, LABELS[grade], CLINICAL_DESCRIPTIONS[grade], mock_probs, preprocessed_img
+        if demo_mode():
+            # DEMO ONLY: random probabilities, not a model output
+            mock_probs = np.random.dirichlet(np.ones(5))
+            grade = int(np.argmax(mock_probs))
+            return grade, LABELS[grade], CLINICAL_DESCRIPTIONS[grade], mock_probs, preprocessed_img
+        raise FileNotFoundError(f"Model weights not found: {eff_path}")
 
     # --- REAL INFERENCE ---
     tta_transforms = [

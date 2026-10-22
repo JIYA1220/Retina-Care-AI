@@ -47,10 +47,8 @@ def get_model(weights_path: str, model_name: str, device_name: str = "cpu") -> D
     model = build_model(model_name=model_name, pretrained=False)
     
     if not os.path.exists(weights_path):
-        # Return uninitialized model for demo purposes if weights missing
-        model.eval()
-        return model
-        
+        raise FileNotFoundError(f"Model weights not found: {weights_path}")
+
     state = torch.load(weights_path, map_location=device)
     model.load_state_dict(state)
     model.to(device)
