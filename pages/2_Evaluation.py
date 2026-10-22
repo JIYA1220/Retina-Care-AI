@@ -1,120 +1,131 @@
 """
 2_Evaluation.py
-Advanced Model Evaluation Dashboard.
-Crash-proof implementation for Cloud deployment.
+Evaluation dashboard. Shows ONLY numbers that were measured by the scripts in
+scripts/ and saved under results/. If those files are missing no numbers are shown.
 """
 
+import json
 import os
-import torch
-import pandas as pd
-import numpy as np
-import streamlit as st
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.metrics import (
-    confusion_matrix, classification_report, 
-    cohen_kappa_score, roc_curve, auc
-)
-from torch.utils.data import DataLoader
 
-from model.model import load_model
-from utils.dataset import APTOSDataset, get_val_transforms
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import streamlit as st
+from sklearn.metrics import auc, roc_curve
+
 from utils.ui import apply_medical_theme, footer
 
-# -----------------------------------------------------------------------------
-# Init
-# -----------------------------------------------------------------------------
 st.set_page_config(page_title="Evaluation | DR Grader", layout="wide")
 apply_medical_theme()
 
-WEIGHTS_PATH = "model/efficientnet_b0_dr.pth"
-DATA_DIR = "data"
-VAL_CSV = os.path.join(DATA_DIR, "_val_split.csv")
-IMG_DIR = os.path.join(DATA_DIR, "train_images")
+RESULTS = "results"
 LABELS = ["None", "Mild", "Mod", "Sev", "Prolif"]
 
-@st.cache_data(show_spinner=False)
-def run_evaluation(_model, _loader):
-    device = torch.device("cpu")
-    all_probs, all_labels = [], []
-    with torch.no_grad():
-        for imgs, labels in _loader:
-            logits = _model(imgs.to(device))
-            probs = torch.softmax(logits, dim=1)
-            all_probs.append(probs.numpy())
-            all_labels.append(labels.numpy())
-    return np.concatenate(all_probs), np.concatenate(all_labels)
 
-# -----------------------------------------------------------------------------
-# Page Layout
-# -----------------------------------------------------------------------------
-st.markdown("<h1>Model Evaluation Dashboard</h1>", unsafe_allow_html=True)
+def _path(name: str) -> str:
+    return os.path.join(RESULTS, name)
 
-# Detect Cloud vs Local
-HAS_IMAGES = os.path.exists(IMG_DIR) and len(os.listdir(IMG_DIR)) > 0
-USE_SIMULATION = not os.path.exists(WEIGHTS_PATH) or not HAS_IMAGES
 
-if USE_SIMULATION:
-    st.info("💡 **Clinical Simulation Mode**: Actual validation images are not stored in this repository. Showing performance data from the final training logs.")
+st.markdown("<h1>Model Evaluation</h1>", unsafe_allow_html=True)
 
-# Execution Logic
-if not USE_SIMULATION:
-    try:
-        model = load_model(WEIGHTS_PATH, "efficientnet_b0", "cpu")
-        ds = APTOSDataset(VAL_CSV, IMG_DIR, img_size=160, transform=get_val_transforms())
-        loader = DataLoader(ds, batch_size=16, shuffle=False)
-        probs, y_true = run_evaluation(model, loader)
-        y_pred = np.argmax(probs, axis=1)
-        qwk = cohen_kappa_score(y_true, y_pred, weights="quadratic")
-        acc = (y_true == y_pred).mean()
-        total_images = len(y_true)
-    except Exception as e:
-        USE_SIMULATION = True # Fallback if data is corrupted
+if not os.path.exists(_path("val_metrics.json")) or not os.path.exists(_path("val_predictions.csv")):
+    st.error("Results not found. Run `python scripts/evaluate.py` to generate them.")
+    footer()
+    st.stop()
 
-if USE_SIMULATION:
-    # High-fidelity mock data based on your 0.8042 Kappa run
-    qwk = 0.8042
-    acc = 0.865
-    total_images = 733
-    y_true = np.concatenate([np.full(150, i) for i in range(5)])
-    y_pred = y_true.copy()
-    # Simulate some realistic noise/confusion
-    noise = np.random.choice(len(y_pred), 60, replace=False)
-    y_pred[noise] = np.random.randint(0, 5, 60)
-    probs = np.eye(5)[y_pred] + 0.1 # Dummy probs
+with open(_path("val_metrics.json")) as f:
+    metrics = json.load(f)
+preds = pd.read_csv(_path("val_predictions.csv"))
+variants = metrics["variants"]
 
-# -----------------------------------------------------------------------------
-# Visuals
-# -----------------------------------------------------------------------------
-st.markdown("---")
-c1, c2, c3, c4 = st.columns(4)
-with c1: st.metric("QWK Score", f"{qwk:.4f}")
-with c2: st.metric("Accuracy", f"{acc*100:.1f}%")
-with c3: st.metric("Test Samples", total_images)
-with c4: st.metric("Agreement", "Excellent")
+st.info(
+    "These numbers are measured on the **validation split** (`data/_val_split.csv`, "
+    f"n = {next(iter(variants.values()))['n_images']}). The same split was used for early stopping and for "
+    "fitting the temperature, so this is not a held-out test set. Dataset: APTOS 2019 only, 160 px images. "
+    "Not a medical device."
+)
+
+st.markdown("### All model variants")
+table = pd.DataFrame([{
+    "Variant": name,
+    "QWK": round(v["qwk"], 4),
+    "95% CI (bootstrap)": f"{v['qwk_ci95'][0]:.4f} - {v['qwk_ci95'][1]:.4f}",
+    "Accuracy": f"{v['accuracy'] * 100:.1f}%",
+} for name, v in variants.items()])
+st.dataframe(table, hide_index=True, use_container_width=True)
+st.caption(f"Commit {metrics['git']['commit'][:8]}, measured {metrics['date']}. "
+           f"Ensemble weights {metrics['ensemble_weights']}.")
+
+names = list(variants)
+choice = st.selectbox("Variant to inspect", names, index=names.index(metrics["primary_model"]))
+v = variants[choice]
+
+c1, c2, c3 = st.columns(3)
+c1.metric("QWK", f"{v['qwk']:.4f}")
+c2.metric("Accuracy", f"{v['accuracy'] * 100:.1f}%")
+c3.metric("Validation images", v["n_images"])
 
 col_cm, col_tab = st.columns([1.2, 1])
 with col_cm:
-    st.subheader("Confusion Matrix")
-    cm = confusion_matrix(y_true, y_pred, normalize='true')
+    st.subheader("Confusion matrix (row-normalised)")
+    cm = np.array(v["confusion_matrix"], dtype=float)
+    cm_norm = cm / cm.sum(axis=1, keepdims=True)
     fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt=".2f", cmap="Purples", xticklabels=LABELS, yticklabels=LABELS, ax=ax)
+    sns.heatmap(cm_norm, annot=True, fmt=".2f", cmap="Purples", xticklabels=LABELS,
+                yticklabels=LABELS, ax=ax)
+    ax.set_xlabel("Predicted"); ax.set_ylabel("True")
     st.pyplot(fig)
-
+    plt.close(fig)
 with col_tab:
-    st.subheader("Performance by Grade")
-    report = classification_report(y_true, y_pred, target_names=LABELS, output_dict=True)
-    st.table(pd.DataFrame(report).transpose().iloc[:5, :3])
+    st.subheader("Per-grade metrics")
+    st.table(pd.DataFrame(v["per_class"]).T.rename(index=lambda k: LABELS[int(k)]).round(3))
 
-# ROC Curves
 st.markdown("---")
-st.subheader("ROC Curves (Precision Analysis)")
-fig_roc, ax_roc = plt.subplots(figsize=(10, 4))
+st.subheader("One-vs-rest ROC curves")
+sub = preds[preds.model == choice]
+fig_roc, ax_roc = plt.subplots(figsize=(8, 4))
 for i in range(5):
-    fpr, tpr, _ = roc_curve(y_true == i, probs[:, i])
-    ax_roc.plot(fpr, tpr, label=f'{LABELS[i]} (AUC = {auc(fpr, tpr):.2f})')
-ax_roc.plot([0, 1], [0, 1], 'k--')
+    fpr, tpr, _ = roc_curve(sub.y_true == i, sub[f"p{i}"])
+    ax_roc.plot(fpr, tpr, label=f"{LABELS[i]} (AUC = {auc(fpr, tpr):.2f})")
+ax_roc.plot([0, 1], [0, 1], "k--")
+ax_roc.set_xlabel("False positive rate"); ax_roc.set_ylabel("True positive rate")
 ax_roc.legend()
 st.pyplot(fig_roc)
+plt.close(fig_roc)
+
+st.markdown("---")
+st.subheader("Calibration")
+if os.path.exists(_path("calibration.json")):
+    with open(_path("calibration.json")) as f:
+        cal = json.load(f)
+    rows = [{"Model": n,
+             "ECE before": round(m["ece_before"], 4),
+             "ECE after (cross-fitted T)": round(m["ece_after_crossfit"], 4),
+             "NLL before": round(m["nll_before"], 4),
+             "NLL after (cross-fitted T)": round(m["nll_after_crossfit"], 4)}
+            for n, m in cal["models"].items()]
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.caption("Temperature fitted on one half of the validation split and evaluated on the other half "
+               "(2-fold cross-fitting), 15 ECE bins.")
+    if os.path.exists(_path("reliability_diagrams.png")):
+        st.image(_path("reliability_diagrams.png"))
+else:
+    st.write("Not yet measured. Run `python scripts/calibration_report.py`.")
+
+st.markdown("---")
+st.subheader("Robustness to image perturbations")
+if os.path.exists(_path("robustness.csv")):
+    rob = pd.read_csv(_path("robustness.csv"))
+    st.dataframe(rob.round(4), hide_index=True, use_container_width=True)
+    if os.path.exists(_path("robustness.png")):
+        st.image(_path("robustness.png"))
+else:
+    st.write("Not yet measured. Run `python scripts/robustness.py`.")
+
+if os.path.exists(_path("ERROR_ANALYSIS.md")):
+    st.markdown("---")
+    with open(_path("ERROR_ANALYSIS.md"), encoding="utf-8") as f:
+        st.markdown(f.read())
 
 footer()

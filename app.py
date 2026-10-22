@@ -4,6 +4,9 @@ Landing Page - RetinaCare AI.
 Introduction, Clinical Context, and Disease Scale.
 """
 
+import json
+import os
+
 import streamlit as st
 from utils.ui import apply_medical_theme, footer
 
@@ -56,16 +59,32 @@ for i, (g, name, color, desc) in enumerate(grades):
 
 # System Status
 st.markdown("---")
+
+
+def _measured_summary():
+    """Primary-model validation QWK from results/val_metrics.json, or None if not measured."""
+    path = os.path.join("results", "val_metrics.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        m = json.load(f)
+    v = m["variants"][m["primary_model"]]
+    return (f"{v['qwk']:.4f} quadratic weighted kappa (95% CI {v['qwk_ci95'][0]:.4f} to "
+            f"{v['qwk_ci95'][1]:.4f}), {m['primary_model']}, validation split, n={v['n_images']}")
+
+
 with st.container():
     st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
     st.markdown("### System Specifications")
     ca, cb = st.columns(2)
     with ca:
-        st.write("**Architecture:** EfficientNet-B0 + ResNet-50 Ensemble")
-        st.write("**Optimization:** Focal Loss + Calibrated Temperature Scaling")
+        st.write("**Default model:** EfficientNet-B0 (160 px input), temperature-scaled")
+        st.write("**Optional (Analysis page toggles):** ResNet-50 soft-voting ensemble (0.6 / 0.4) and 5-view test-time augmentation")
+        st.write("**Training loss:** Focal loss (gamma 1.5) with class weights")
     with cb:
-        st.write("**Evaluation:** 0.8042 Quadratic Weighted Kappa (Excellent)")
-        st.write("**Inference:** Local Host Optimized (No RAM caps)")
+        summary = _measured_summary()
+        st.write(f"**Measured:** {summary}" if summary else "**Measured:** not yet measured (run scripts/evaluate.py)")
+        st.write("**Caveat:** validation split, also used for early stopping and temperature fitting. See the Evaluation page.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 footer()

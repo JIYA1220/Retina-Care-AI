@@ -4,6 +4,7 @@ Shared UI components for RetinaCare AI.
 Purple theme, forced black text, and professional medical layout.
 """
 
+import os
 import streamlit as st
 
 def apply_medical_theme():
@@ -56,6 +57,11 @@ def apply_medical_theme():
         }
         </style>
     """, unsafe_allow_html=True)
+    if os.environ.get("DR_DEMO_MOCK") == "1":
+        st.markdown(
+            "<div style='background:#B91C1C;color:white;padding:12px;border-radius:8px;"
+            "text-align:center;font-weight:800;'>DEMO MODE: predictions are random</div>",
+            unsafe_allow_html=True)
 
 def footer():
     st.markdown("---")
